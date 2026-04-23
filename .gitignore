@@ -1,0 +1,12 @@
+node_modules/
+server/target/
+server/target-*/
+daemon/.build/
+daemon/.swiftpm/
+dist/
+.DS_Store
+*.log
+hux
+hux-*
+hux.prev
+btop_test.mjs

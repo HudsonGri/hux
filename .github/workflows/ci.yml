@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install js dependencies
+        run: bun install --frozen-lockfile
+
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            server/target
+          key: macos-14-cargo-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: macos-14-cargo-
+
+      - name: check
+        run: |
+          cargo fmt --manifest-path server/Cargo.toml --check
+          bun run check
+          bun run snapshot
+
+      - name: build
+        run: bun run build

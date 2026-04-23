@@ -1,0 +1,95 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            slug: darwin-arm64
+          - runner: macos-13
+            slug: darwin-x86_64
+          - runner: ubuntu-22.04
+            slug: linux-x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install js dependencies
+        run: bun install --frozen-lockfile
+
+      - name: install rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            server/target
+          key: ${{ matrix.runner }}-cargo-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: ${{ matrix.runner }}-cargo-
+
+      - name: bake version
+        run: echo "export const VERSION = '${{ steps.tag.outputs.name }}'" > src/version.ts
+
+      - name: check
+        run: |
+          bun run check:ts
+          bun run check:server
+
+      - name: build
+        run: |
+          bun run build:server
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            bun run build:daemon
+          fi
+          bun run build:client
+
+      - name: stage artifacts
+        run: |
+          mkdir -p dist
+          cp hux dist/hux
+          cp server/target/release/hux-server dist/hux-server
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cp daemon/.build/release/hux-drag-daemon dist/hux-drag-daemon
+          fi
+          echo "${{ steps.tag.outputs.name }}" > dist/VERSION
+          tar -C dist -czf hux-${{ matrix.slug }}.tar.gz .
+          shasum -a 256 hux-${{ matrix.slug }}.tar.gz > hux-${{ matrix.slug }}.tar.gz.sha256
+
+      - name: upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          files: |
+            hux-${{ matrix.slug }}.tar.gz
+            hux-${{ matrix.slug }}.tar.gz.sha256
