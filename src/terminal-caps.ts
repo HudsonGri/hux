@@ -22,17 +22,30 @@ function detectRichTerminal(): boolean {
 
 export const isRichTerminal = detectRichTerminal()
 
-// OSC 22 (cursor shape): Ghostty/kitty/WezTerm/iTerm2 support it; Terminal.app
-// does not, and the sequence fires on every hover event — silence it there.
-export const pointerShapeSupported = isRichTerminal
+export type TerminalCaps = {
+  // ?2026 DEC synchronized output — wraps a frame so the terminal paints it
+  // atomically. Without it we emit HIDE_CURSOR around frames to avoid
+  // cursor-race tearing.
+  syncUpdate: boolean
+  // ?1003 any-event mouse motion — reports on every cell the cursor crosses.
+  // Without it we fall back to ?1002 (button-event only) so hover flood
+  // doesn't swamp stdin on basic terminals.
+  anyMotionMouse: boolean
+  // OSC 22 cursor shape — Ghostty/kitty/WezTerm/iTerm2 honor it; Terminal.app
+  // ignores and pollutes output instead.
+  pointerShape: boolean
+}
 
-// ?1003h (any-event motion) reports on every cell the cursor crosses. Pairing
-// that with a full-frame repaint on terminals without synchronous update
-// (Terminal.app) produces visible tearing and input lag. Fall back to ?1002h
-// (button-event motion) so hover cells don't flood stdin.
-export const anyMotionMouseSupported = isRichTerminal
+// Env-based detection is the seed; the runtime probe (see terminal-probe.ts)
+// updates these after startup based on the actual terminal's DECRQM responses.
+// Over SSH, env hints are usually wrong (remote sees TERM=xterm-256color) but
+// the probe reaches through to the user's real terminal.
+export const terminalCaps: TerminalCaps = {
+  syncUpdate: isRichTerminal,
+  anyMotionMouse: isRichTerminal,
+  pointerShape: isRichTerminal,
+}
 
-// ?2026h/l wraps a frame so the terminal paints it atomically. Unsupported
-// terminals ignore the DEC private mode silently, but we still gate on it to
-// avoid emitting a few unused bytes per frame.
-export const syncUpdateSupported = isRichTerminal
+export function updateCaps(patch: Partial<TerminalCaps>): void {
+  Object.assign(terminalCaps, patch)
+}

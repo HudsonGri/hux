@@ -1,5 +1,5 @@
 import type { HitRegion } from './runtime.js'
-import { pointerShapeSupported } from './terminal-caps.js'
+import { terminalCaps } from './terminal-caps.js'
 import type { AppState } from './wm.js'
 
 export type PointerShapeDeps = {
@@ -44,7 +44,7 @@ function shapeForCursor(x: number, y: number): string {
 }
 
 export function updatePointerShape(x: number, y: number): void {
-  if (!pointerShapeSupported) return
+  if (!terminalCaps.pointerShape) return
   const shape = shapeForCursor(x, y)
   if (shape === currentShape) return
   currentShape = shape

@@ -11,10 +11,11 @@ import {
   EXIT_ALT_SCREEN,
   HIDE_CURSOR,
   SHOW_CURSOR,
-  HOME,
   CLEAR_SCREEN,
   RESET,
 } from './terminal-escapes.js'
+import { beginFrame, endFrame } from './frame-writer.js'
+import { probeTerminalCaps } from './terminal-probe.js'
 
 export type TabViewBlob = {
   v: 1
@@ -169,6 +170,9 @@ export async function runTabView(b64: string): Promise<void> {
   process.on('SIGTERM', () => finish(143))
 
   if (process.stdin.isTTY) process.stdin.setRawMode(true)
+
+  await probeTerminalCaps()
+
   process.stdin.resume()
   process.stdout.write(`${ENTER_ALT_SCREEN}${HIDE_CURSOR}${CLEAR_SCREEN}`)
 
@@ -201,7 +205,7 @@ export async function runTabView(b64: string): Promise<void> {
       overlays,
     })
     propagateResize(hitRegions)
-    process.stdout.write(`${HOME}${output}`)
+    process.stdout.write(beginFrame() + output + endFrame(HIDE_CURSOR))
   }
 
   function propagateResize(regions: HitRegion[]): void {

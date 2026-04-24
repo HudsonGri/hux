@@ -9,6 +9,8 @@ import {
   SHOW_CURSOR,
   RESET,
 } from './terminal-escapes.js'
+import { beginFrame, endFrame } from './frame-writer.js'
+import { probeTerminalCaps } from './terminal-probe.js'
 
 const RGB_FLAG = 0x01000000
 
@@ -61,6 +63,9 @@ export async function runPaneView(paneId: string): Promise<void> {
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true)
   }
+
+  await probeTerminalCaps()
+
   process.stdin.resume()
   process.stdout.write(`${ENTER_ALT_SCREEN}${HIDE_CURSOR}`)
 
@@ -120,7 +125,7 @@ export async function runPaneView(paneId: string): Promise<void> {
     const termCols = process.stdout.columns || 80
     const termRows = process.stdout.rows || 24
     const rowCount = Math.min(cells.length, termRows)
-    const out: string[] = ['\x1b[H']
+    const out: string[] = [beginFrame()]
     let lastStyle = RESET
     out.push(RESET)
     for (let r = 0; r < rowCount; r++) {
@@ -142,11 +147,11 @@ export async function runPaneView(paneId: string): Promise<void> {
     }
     out.push(RESET)
     const { x: cx, y: cy } = session.cursor
-    if (cx >= 0 && cy >= 0 && cx < termCols && cy < termRows) {
-      out.push(`\x1b[${cy + 1};${cx + 1}H${SHOW_CURSOR}`)
-    } else {
-      out.push(HIDE_CURSOR)
-    }
+    const cursorSuffix =
+      cx >= 0 && cy >= 0 && cx < termCols && cy < termRows
+        ? `\x1b[${cy + 1};${cx + 1}H${SHOW_CURSOR}`
+        : HIDE_CURSOR
+    out.push(endFrame(cursorSuffix))
     process.stdout.write(out.join(''))
   }
 

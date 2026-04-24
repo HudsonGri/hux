@@ -62,14 +62,13 @@ import {
   EXIT_ALT_SCREEN,
   HIDE_CURSOR,
   SHOW_CURSOR,
-  HOME,
   CLEAR_SCREEN,
-  ENABLE_MOUSE,
-  DISABLE_MOUSE,
-  RESET_POINTER,
-  BEGIN_SYNC_UPDATE,
-  END_SYNC_UPDATE,
+  enableMouse,
+  disableMouse,
+  resetPointer,
 } from './terminal-escapes.js'
+import { beginFrame, endFrame } from './frame-writer.js'
+import { probeTerminalCaps } from './terminal-probe.js'
 import { debugLogInput, debugLogLine } from './debug-log.js'
 import {
   connectToServer,
@@ -505,7 +504,7 @@ async function main(): Promise<void> {
   } finally {
     ipc.endAttach()
   }
-  startInteractive()
+  await startInteractive()
 }
 
 async function loadAndReconcile(): Promise<void> {
@@ -711,14 +710,17 @@ async function persistState(): Promise<void> {
   }
 }
 
-function startInteractive(): void {
+async function startInteractive(): Promise<void> {
   process.stdin.setRawMode(true)
   process.stdin.setEncoding('utf8')
+
+  await probeTerminalCaps()
+
   process.stdin.on('data', handleInput)
   process.stdin.resume()
 
   process.stdout.write(
-    `${ENTER_ALT_SCREEN}${HIDE_CURSOR}${ENABLE_MOUSE}${CLEAR_SCREEN}`,
+    `${ENTER_ALT_SCREEN}${HIDE_CURSOR}${enableMouse()}${CLEAR_SCREEN}`,
   )
 
   if (kittyPeekSupported) {
@@ -2044,7 +2046,7 @@ function render(): void {
     overlays: view.overlays,
   })
   hitRegions = frame.hitRegions
-  let out = `${BEGIN_SYNC_UPDATE}${HOME}${frame.output}`
+  let out = beginFrame() + frame.output
   if (graphicsPeek) {
     out += renderPeekGraphics(columns, rows)
   } else if (hasActivePeekImages()) {
@@ -2055,8 +2057,7 @@ function render(): void {
   } else if (hasActiveExposeImages()) {
     out += clearExposeGraphics()
   }
-  out += focusedCursorEscape()
-  out += END_SYNC_UPDATE
+  out += endFrame(focusedCursorEscape())
   process.stdout.write(out)
 }
 
@@ -2138,6 +2139,6 @@ function cleanupTerminal(): void {
   const peekCleanup = hasActivePeekImages() ? clearPeekGraphics() : ''
   const exposeCleanup = hasActiveExposeImages() ? clearExposeGraphics() : ''
   process.stdout.write(
-    `${peekCleanup}${exposeCleanup}${RESET_POINTER}${DISABLE_MOUSE}${SHOW_CURSOR}${EXIT_ALT_SCREEN}`,
+    `${peekCleanup}${exposeCleanup}${resetPointer()}${disableMouse()}${SHOW_CURSOR}${EXIT_ALT_SCREEN}`,
   )
 }
