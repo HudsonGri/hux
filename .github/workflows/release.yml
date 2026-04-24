@@ -64,7 +64,8 @@ jobs:
           restore-keys: ${{ matrix.slug }}-cargo-
 
       - name: bake version
-        run: echo "export const VERSION: string = '${{ steps.tag.outputs.name }}'" > src/version.ts
+        run: |
+          echo "export const VERSION: string = '${{ steps.tag.outputs.name }}'" > src/version.ts
 
       - name: check
         run: |
