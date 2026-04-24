@@ -107,9 +107,11 @@ export function startupUpdateCheck(): void {
     const timer = setTimeout(() => ctl.abort(), 5000)
     const rel = await fetchLatest(ctl.signal)
     clearTimeout(timer)
+    // Only stamp last-check on success — otherwise a single failed fetch
+    // (network blip, rate limit) silences the check for a full day.
+    if (!rel) return
     try { mkdirSync(PATHS.dir, { recursive: true }) } catch {}
     try { writeFileSync(LAST_CHECK_FILE, String(Date.now())) } catch {}
-    if (!rel) return
     if (compareVersions(rel.tag_name, VERSION) > 0) {
       try { writeFileSync(AVAILABLE_FILE, rel.tag_name) } catch {}
     } else {
