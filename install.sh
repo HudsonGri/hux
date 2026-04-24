@@ -22,7 +22,6 @@ case "$uname_s" in
   Linux)
     case "$uname_m" in
       x86_64)        slug="linux-x86_64" ;;
-      aarch64|arm64) slug="linux-aarch64" ;;
       *)             die "unsupported arch $uname_m on $uname_s" ;;
     esac ;;
   *) die "unsupported OS $uname_s" ;;

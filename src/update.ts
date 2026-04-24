@@ -151,7 +151,7 @@ export async function runUpdate(): Promise<void> {
   }
   const slug = archSlug()
   if (!slug) {
-    process.stderr.write(`hux: update only supported on macOS (detected ${platform()}/${arch()}).\n`)
+    process.stderr.write(`hux: unsupported platform (detected ${platform()}/${arch()}).\n`)
     process.exit(1)
   }
 

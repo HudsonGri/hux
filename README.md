@@ -20,9 +20,9 @@ bun run start
 curl -fsSL https://hux.sh | sh
 ```
 
-The installer downloads the latest macOS release asset, verifies the published
-SHA-256 checksum, installs `hux` to `~/.local/bin`, and installs helper binaries
-to `~/.hux/bin`.
+The installer downloads the latest release asset for your platform, verifies the
+published SHA-256 checksum, installs `hux` to `~/.local/bin`, and installs
+helper binaries to `~/.hux/bin`.
 
 ## Build (production)
 
