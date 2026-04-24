@@ -20,8 +20,11 @@ jobs:
         include:
           - runner: macos-14
             slug: darwin-arm64
-          - runner: macos-13
+          - runner: macos-14
             slug: darwin-x86_64
+            rust_target: x86_64-apple-darwin
+            bun_target: bun-darwin-x64
+            swift_arch: x86_64
           - runner: ubuntu-22.04
             slug: linux-x86_64
     runs-on: ${{ matrix.runner }}
@@ -47,6 +50,8 @@ jobs:
 
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target || '' }}
 
       - name: cache cargo
         uses: actions/cache@v4
@@ -55,33 +60,56 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             server/target
-          key: ${{ matrix.runner }}-cargo-${{ hashFiles('server/Cargo.lock') }}
-          restore-keys: ${{ matrix.runner }}-cargo-
+          key: ${{ matrix.slug }}-cargo-${{ hashFiles('server/Cargo.lock') }}
+          restore-keys: ${{ matrix.slug }}-cargo-
 
       - name: bake version
-        run: echo "export const VERSION = '${{ steps.tag.outputs.name }}'" > src/version.ts
+        run: echo "export const VERSION: string = '${{ steps.tag.outputs.name }}'" > src/version.ts
 
       - name: check
         run: |
           bun run check:ts
-          bun run check:server
+          if [ -n "${{ matrix.rust_target }}" ]; then
+            cargo check --manifest-path server/Cargo.toml --target ${{ matrix.rust_target }}
+          else
+            cargo check --manifest-path server/Cargo.toml
+          fi
 
       - name: build
         run: |
-          bun run build:server
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            bun run build:daemon
+          if [ -n "${{ matrix.rust_target }}" ]; then
+            cargo build --release --manifest-path server/Cargo.toml --target ${{ matrix.rust_target }}
+          else
+            cargo build --release --manifest-path server/Cargo.toml
           fi
-          bun run build:client
+
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            SWIFT_ARGS="-c release --package-path daemon"
+            if [ -n "${{ matrix.swift_arch }}" ]; then
+              SWIFT_ARGS="$SWIFT_ARGS --arch ${{ matrix.swift_arch }}"
+            fi
+            swift build $SWIFT_ARGS
+            echo "DAEMON_BIN=$(swift build $SWIFT_ARGS --show-bin-path)" >> "$GITHUB_ENV"
+          fi
+
+          BUN_TARGET="${{ matrix.bun_target || 'bun' }}"
+          bun build --compile --minify --target=$BUN_TARGET --sourcemap=none src/index.ts --outfile hux
 
       - name: stage artifacts
         run: |
           mkdir -p dist
           cp hux dist/hux
-          cp server/target/release/hux-server dist/hux-server
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            cp daemon/.build/release/hux-drag-daemon dist/hux-drag-daemon
+
+          if [ -n "${{ matrix.rust_target }}" ]; then
+            cp server/target/${{ matrix.rust_target }}/release/hux-server dist/hux-server
+          else
+            cp server/target/release/hux-server dist/hux-server
           fi
+
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            cp "$DAEMON_BIN/hux-drag-daemon" dist/hux-drag-daemon
+          fi
+
           echo "${{ steps.tag.outputs.name }}" > dist/VERSION
           tar -C dist -czf hux-${{ matrix.slug }}.tar.gz .
           if command -v sha256sum >/dev/null 2>&1; then
