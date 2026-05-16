@@ -17,7 +17,7 @@ bun run start
 ## Install
 
 ```bash
-curl -fsSL https://hux.sh | sh
+curl -fsSL https://raw.githubusercontent.com/HudsonGri/hux/main/install.sh | sh
 ```
 
 The installer downloads the latest release asset for your platform, verifies the

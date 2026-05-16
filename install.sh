@@ -1,5 +1,5 @@
 #!/bin/sh
-# hux installer — curl -fsSL https://hux.sh | sh
+# hux installer — curl -fsSL https://raw.githubusercontent.com/HudsonGri/hux/main/install.sh | sh
 set -eu
 
 REPO="HudsonGri/hux"
